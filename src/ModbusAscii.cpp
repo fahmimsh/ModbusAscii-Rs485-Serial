@@ -1,43 +1,55 @@
 #include "ModbusAscii.h"
-
+/* define class func */
 ModbusAscii::ModbusAscii(Stream& stream, unsigned long baudrate, uint32_t config){
   _stream = &stream;
   _baudrate = baudrate;
   _config = config;
 }
+/* Initialization program for setting up the serial configuration, for example modbus.begin(); */
 void ModbusAscii::begin(){
     static_cast<HardwareSerial*>(_stream)->begin(_baudrate, _config);
     while (!_stream) {;}
 }
-
+/* Function to read multiple registers, 
+for example registers 0-124 with a quantity of 125, with the following arguments:
+ReadMultiReg(slave address, read function, starting register is 0, 125, buffer to store data. */
 int ModbusAscii::ReadMultiReg(uint8_t slaveid_, unsigned char func_, uint16_t startRegister_, uint8_t quantity_, int16_t* ResulReg) {
   SendAsciiCode(slaveid_, func_, startRegister_, quantity_); 
   return ReadTransaction(slaveid_, func_, quantity_, ResulReg);
 }
+/* Function to read single registers, 
+for example registers 64-th, with the following arguments:
+ReadSingleReg(slave address, read function, register is 64, buffer to store data. */
 int ModbusAscii::ReadSingleReg(uint8_t slaveid_, unsigned char func_, uint16_t Register_, int16_t* ResulReg) {
   SendAsciiCode(slaveid_, func_, Register_, 1); 
   return ReadTransaction(slaveid_, func_, 1, ResulReg);
 }
+/* Function to write single registers, 
+for example registers 64-th, with the following arguments:
+ReadSingleReg(slave address, read function, register is 64, value to write data). */
 int ModbusAscii::WriteSigleReg(uint8_t slaveid_, unsigned char func_, uint16_t Register_, uint16_t value_){
   SendAsciiCode(slaveid_, func_, Register_, value_);
   return WriteTransaction(slaveid_, func_, Register_, 1);
 }
+/* Function to write multiple registers, 
+for example registers 0-124 with a quantity of 125, with the following arguments:
+ReadMultiReg(slave address, read function, starting register is 0, 125, value to write all data. */
 int ModbusAscii::WriteMultiReg(uint8_t slaveid_, unsigned char func_, uint16_t Register_, uint8_t quantity_, uint16_t* value_){
-  char code[255]; // Menambahkan ruang tambahan untuk LRC dan terminator
+  char code[255];
   sprintf(code, "%02X%02X%04X%04X%02X", slaveid_, func_, Register_, quantity_, (quantity_*4));
   for(int i = 0; i < quantity_; i++){ sprintf(&code[(i*4)+14], "%04X", value_[i]);}
-  sprintf(&code[14 + (quantity_*4)], "%02X\r\n", calculateLRC(code)); // Menambahkan LRC dan terminator
+  sprintf(&code[14 + (quantity_*4)], "%02X\r\n", calculateLRC(code));
   while (_stream->read() != -1);
-  _stream->printf(":%s", code); // Mengirimkan kode melalui Serial2 Serial.printf(":%s", code);
+  _stream->printf(":%s", code);
   _stream->flush();
   return WriteTransaction(slaveid_, func_, Register_, quantity_);
 }
 void ModbusAscii::SendAsciiCode(unsigned char slaveID, unsigned char func, unsigned short startReg, unsigned short quantity){
-  char code[17]; // Menambahkan ruang tambahan untuk LRC dan terminator
+  char code[17];
   sprintf(code, "%02X%02X%04X%04X", slaveID, func, startReg, quantity);
-  sprintf(&code[12], "%02X\r\n", calculateLRC(code)); // Menambahkan LRC dan terminator
+  sprintf(&code[12], "%02X\r\n", calculateLRC(code));
   while (_stream->read() != -1);
-  _stream->printf(":%s", code); // Mengirimkan kode melalui Serial2 Serial.printf(":%s", code);
+  _stream->printf(":%s", code);
   _stream->flush();
 }
 int ModbusAscii::ReadTransaction(uint8_t slaveid_, unsigned char func_, uint8_t quantity_, int16_t *ResulReg){
